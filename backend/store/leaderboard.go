@@ -85,6 +85,7 @@ func (lb *Leaderboard) BulkAddUsers(users []*models.User) {
 // rebuildRankCache rebuilds the rank cache for tie-aware ranking
 func (lb *Leaderboard) rebuildRankCache() {
 	if !lb.rankCacheDirty {
+
 		return
 	}
 
