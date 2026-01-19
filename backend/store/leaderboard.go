@@ -106,3 +106,188 @@ func (lb *Leaderboard) rebuildRankCache() {
 
 	lb.rankCacheDirty = false
 }
+
+// ensureSorted makes sure the sortedUsers slice is sorted
+func (lb *Leaderboard) ensureSorted() {
+	sort.Slice(lb.sortedUsers, func(i, j int) bool {
+		if lb.sortedUsers[i].Rating != lb.sortedUsers[j].Rating {
+			return lb.sortedUsers[i].Rating > lb.sortedUsers[j].Rating
+		}
+		return lb.sortedUsers[i].Username < lb.sortedUsers[j].Username
+	})
+}
+
+// GetLeaderboard returns paginated leaderboard entries with tie-aware ranking
+func (lb *Leaderboard) GetLeaderboard(limit, offset int) []models.LeaderboardEntry {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if lb.rankCacheDirty {
+		lb.mu.RUnlock()
+		lb.mu.Lock()
+		lb.rebuildRankCache()
+		lb.ensureSorted()
+		lb.mu.Unlock()
+		lb.mu.RLock()
+	}
+
+	if offset >= len(lb.sortedUsers) {
+		return []models.LeaderboardEntry{}
+	}
+
+	end := offset + limit
+	if end > len(lb.sortedUsers) {
+		end = len(lb.sortedUsers)
+	}
+
+	entries := make([]models.LeaderboardEntry, 0, end-offset)
+	for i := offset; i < end; i++ {
+		user := lb.sortedUsers[i]
+		entries = append(entries, models.LeaderboardEntry{
+			Rank:     lb.rankCache[user.Rating],
+			Username: user.Username,
+			Rating:   user.Rating,
+		})
+	}
+
+	return entries
+}
+
+// SearchUsers searches for users by username prefix (case-insensitive)
+func (lb *Leaderboard) SearchUsers(query string, limit int) []models.SearchResult {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if lb.rankCacheDirty {
+		lb.mu.RUnlock()
+		lb.mu.Lock()
+		lb.rebuildRankCache()
+		lb.ensureSorted()
+		lb.mu.Unlock()
+		lb.mu.RLock()
+	}
+
+	query = strings.ToLower(query)
+	results := make([]models.SearchResult, 0)
+
+	for _, user := range lb.sortedUsers {
+		if strings.Contains(strings.ToLower(user.Username), query) {
+			results = append(results, models.SearchResult{
+				GlobalRank: lb.rankCache[user.Rating],
+				Username:   user.Username,
+				Rating:     user.Rating,
+			})
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+
+	return results
+}
+
+// GetUserRank gets a specific user's rank by username
+func (lb *Leaderboard) GetUserRank(username string) (*models.SearchResult, bool) {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if lb.rankCacheDirty {
+		lb.mu.RUnlock()
+		lb.mu.Lock()
+		lb.rebuildRankCache()
+		lb.mu.Unlock()
+		lb.mu.RLock()
+	}
+
+	user, exists := lb.usersByUsername[username]
+	if !exists {
+		return nil, false
+	}
+
+	return &models.SearchResult{
+		GlobalRank: lb.rankCache[user.Rating],
+		Username:   user.Username,
+		Rating:     user.Rating,
+	}, true
+}
+
+// UpdateRating updates a user's rating
+func (lb *Leaderboard) UpdateRating(username string, newRating int) bool {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	user, exists := lb.usersByUsername[username]
+	if !exists {
+		return false
+	}
+
+	oldRating := user.Rating
+
+	// Remove from old rating group
+	users := lb.ratingToUsers[oldRating]
+	for i, u := range users {
+		if u == username {
+			lb.ratingToUsers[oldRating] = append(users[:i], users[i+1:]...)
+			break
+		}
+	}
+	if len(lb.ratingToUsers[oldRating]) == 0 {
+		delete(lb.ratingToUsers, oldRating)
+	}
+
+	// Update user rating
+	user.Rating = newRating
+
+	// Add to new rating group
+	lb.ratingToUsers[newRating] = append(lb.ratingToUsers[newRating], username)
+
+	lb.rankCacheDirty = true
+	return true
+}
+
+// GetRandomUser returns a random user for score updates
+func (lb *Leaderboard) GetRandomUser(index int) *models.User {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if len(lb.sortedUsers) == 0 {
+		return nil
+	}
+
+	return lb.sortedUsers[index%len(lb.sortedUsers)]
+}
+
+// GetTotalUsers returns total number of users
+func (lb *Leaderboard) GetTotalUsers() int {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+	return len(lb.sortedUsers)
+}
+
+// GetStats returns leaderboard statistics
+func (lb *Leaderboard) GetStats() models.StatsResponse {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	stats := models.StatsResponse{
+		TotalUsers: len(lb.sortedUsers),
+		MinRating:  5000,
+		MaxRating:  100,
+	}
+
+	for rating := range lb.ratingToUsers {
+		if rating < stats.MinRating {
+			stats.MinRating = rating
+		}
+		if rating > stats.MaxRating {
+			stats.MaxRating = rating
+		}
+	}
+
+	if len(lb.sortedUsers) == 0 {
+		stats.MinRating = 0
+		stats.MaxRating = 0
+	}
+
+	return stats
+}
