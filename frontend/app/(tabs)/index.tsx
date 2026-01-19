@@ -1,98 +1,313 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { apiService, LeaderboardEntry } from '@/services/api';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// Rank badge component with colors for top 3
+const RankBadge = ({ rank }: { rank: number }) => {
+  let backgroundColor = '#3a3a4a';
+  let textColor = '#ffffff';
 
-export default function HomeScreen() {
+  if (rank === 1) {
+    backgroundColor = '#FFD700';
+    textColor = '#000000';
+  } else if (rank === 2) {
+    backgroundColor = '#C0C0C0';
+    textColor = '#000000';
+  } else if (rank === 3) {
+    backgroundColor = '#CD7F32';
+    textColor = '#000000';
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={[styles.rankBadge, { backgroundColor }]}>
+      <Text style={[styles.rankText, { color: textColor }]}>#{rank}</Text>
+    </View>
+  );
+};
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+// Rating display component
+const RatingDisplay = ({ rating }: { rating: number }) => {
+  let color = '#4ade80'; // green for high ratings
+  if (rating < 2000) color = '#f87171'; // red
+  else if (rating < 3500) color = '#facc15'; // yellow
+
+  return (
+    <View style={[styles.ratingContainer, { borderColor: color }]}>
+      <Text style={[styles.ratingText, { color }]}>{rating}</Text>
+    </View>
+  );
+};
+
+// User row component
+const UserRow = ({ item, index }: { item: LeaderboardEntry; index: number }) => (
+  <View style={[styles.userRow, index % 2 === 0 ? styles.evenRow : styles.oddRow]}>
+    <RankBadge rank={item.rank} />
+    <Text style={styles.username} numberOfLines={1}>{item.username}</Text>
+    <RatingDisplay rating={item.rating} />
+  </View>
+);
+
+export default function LeaderboardScreen() {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const PAGE_SIZE = 50;
+
+  const fetchLeaderboard = useCallback(async (offset: number = 0, isRefresh: boolean = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else if (offset === 0) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      setError(null);
+
+      const response = await apiService.getLeaderboard(PAGE_SIZE, offset);
+
+      if (isRefresh || offset === 0) {
+        setEntries(response.entries);
+      } else {
+        setEntries(prev => [...prev, ...response.entries]);
+      }
+
+      setHasMore(response.hasMore);
+      setTotalUsers(response.totalUsers);
+    } catch (err) {
+      setError('Failed to load leaderboard. Is the backend running?');
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
+
+  const handleRefresh = () => {
+    fetchLeaderboard(0, true);
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      fetchLeaderboard(entries.length);
+    }
+  };
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator size="small" color="#8b5cf6" />
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#8b5cf6" />
+          <Text style={styles.loadingText}>Loading leaderboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>⚠️ {error}</Text>
+          <Text style={styles.errorHint}>Make sure the backend is running on port 8080</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>🏆 Leaderboard</Text>
+        <Text style={styles.headerSubtitle}>{totalUsers.toLocaleString()} Players</Text>
+      </View>
+
+      {/* Column Headers */}
+      <View style={styles.columnHeaders}>
+        <Text style={styles.columnRank}>Rank</Text>
+        <Text style={styles.columnUsername}>Username</Text>
+        <Text style={styles.columnRating}>Rating</Text>
+      </View>
+
+      {/* Leaderboard List */}
+      <FlatList
+        data={entries}
+        keyExtractor={(item, index) => `${item.username}-${index}`}
+        renderItem={({ item, index }) => <UserRow item={item} index={index} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#8b5cf6"
+          />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={Platform.OS !== 'web'}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#0f0f1a',
   },
-  stepContainer: {
-    gap: 8,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#9ca3af',
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#f87171',
+    fontSize: 18,
+    textAlign: 'center',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  errorHint: {
+    color: '#9ca3af',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  header: {
+    padding: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f1f2e',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+  columnHeaders: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1a1a2e',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a3e',
+  },
+  columnRank: {
+    width: 70,
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  columnUsername: {
+    flex: 1,
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  columnRating: {
+    width: 80,
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    textAlign: 'right',
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  evenRow: {
+    backgroundColor: '#0f0f1a',
+  },
+  oddRow: {
+    backgroundColor: '#151525',
+  },
+  rankBadge: {
+    width: 55,
+    height: 30,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  rankText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  username: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  ratingContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  footer: {
+    padding: 16,
+    alignItems: 'center',
   },
 });
