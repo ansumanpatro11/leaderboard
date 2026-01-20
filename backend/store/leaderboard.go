@@ -25,16 +25,24 @@ type Leaderboard struct {
 
 	// Flag to indicate if rankCache needs rebuild
 	rankCacheDirty bool
+
+	// Prefix index for fast user search - maps lowercase prefix to list of usernames
+	prefixIndex map[string][]string
+
+	// Flag to indicate if prefixIndex needs rebuild
+	prefixIndexDirty bool
 }
 
 // NewLeaderboard creates a new leaderboard instance
 func NewLeaderboard() *Leaderboard {
 	return &Leaderboard{
-		usersByUsername: make(map[string]*models.User),
-		sortedUsers:     make([]*models.User, 0),
-		ratingToUsers:   make(map[int][]string),
-		rankCache:       make(map[int]int),
-		rankCacheDirty:  true,
+		usersByUsername:  make(map[string]*models.User),
+		sortedUsers:      make([]*models.User, 0),
+		ratingToUsers:    make(map[int][]string),
+		rankCache:        make(map[int]int),
+		rankCacheDirty:   true,
+		prefixIndex:      make(map[string][]string),
+		prefixIndexDirty: true,
 	}
 }
 
@@ -57,6 +65,7 @@ func (lb *Leaderboard) AddUser(user *models.User) {
 	lb.ratingToUsers[user.Rating] = append(lb.ratingToUsers[user.Rating], user.Username)
 
 	lb.rankCacheDirty = true
+	lb.prefixIndexDirty = true
 }
 
 // BulkAddUsers adds multiple users efficiently
@@ -80,6 +89,7 @@ func (lb *Leaderboard) BulkAddUsers(users []*models.User) {
 	})
 
 	lb.rankCacheDirty = true
+	lb.prefixIndexDirty = true
 }
 
 // rebuildRankCache rebuilds the rank cache for tie-aware ranking
@@ -106,6 +116,24 @@ func (lb *Leaderboard) rebuildRankCache() {
 	}
 
 	lb.rankCacheDirty = false
+}
+
+// rebuildPrefixIndex rebuilds the prefix index from current users
+func (lb *Leaderboard) rebuildPrefixIndex() {
+	if !lb.prefixIndexDirty {
+		return
+	}
+
+	lb.prefixIndex = make(map[string][]string)
+	for username := range lb.usersByUsername {
+		usernameL := strings.ToLower(username)
+		// Add all prefixes of the username
+		for i := 1; i <= len(usernameL); i++ {
+			prefix := usernameL[:i]
+			lb.prefixIndex[prefix] = append(lb.prefixIndex[prefix], username)
+		}
+	}
+	lb.prefixIndexDirty = false
 }
 
 // ensureSorted makes sure the sortedUsers slice is sorted
@@ -154,7 +182,7 @@ func (lb *Leaderboard) GetLeaderboard(limit, offset int) []models.LeaderboardEnt
 	return entries
 }
 
-// SearchUsers searches for users by username prefix (case-insensitive)
+// SearchUsers searches for users by username using prefix index (case-insensitive)
 func (lb *Leaderboard) SearchUsers(query string, limit int) []models.SearchResult {
 	lb.mu.RLock()
 	defer lb.mu.RUnlock()
@@ -168,20 +196,56 @@ func (lb *Leaderboard) SearchUsers(query string, limit int) []models.SearchResul
 		lb.mu.RLock()
 	}
 
+	if lb.prefixIndexDirty {
+		lb.mu.RUnlock()
+		lb.mu.Lock()
+		lb.rebuildPrefixIndex()
+		lb.mu.Unlock()
+		lb.mu.RLock()
+	}
+
 	query = strings.ToLower(query)
 	results := make([]models.SearchResult, 0)
 
-	for _, user := range lb.sortedUsers {
-		if strings.Contains(strings.ToLower(user.Username), query) {
-			results = append(results, models.SearchResult{
-				GlobalRank: lb.rankCache[user.Rating],
-				Username:   user.Username,
-				Rating:     user.Rating,
-			})
-			if len(results) >= limit {
-				break
+	// Use prefix index for fast lookup
+	matchingUsernames := make([]string, 0)
+	if len(query) > 0 {
+		if prefixMatches, exists := lb.prefixIndex[query]; exists {
+			matchingUsernames = prefixMatches
+		} else {
+			// Fall back to substring search
+			seenMap := make(map[string]bool)
+			for prefix, usernames := range lb.prefixIndex {
+				if strings.Contains(prefix, query) {
+					for _, u := range usernames {
+						if !seenMap[u] {
+							matchingUsernames = append(matchingUsernames, u)
+							seenMap[u] = true
+						}
+					}
+				}
 			}
 		}
+	}
+
+	// Sort matching usernames by rating (descending)
+	sort.Slice(matchingUsernames, func(i, j int) bool {
+		userI := lb.usersByUsername[matchingUsernames[i]]
+		userJ := lb.usersByUsername[matchingUsernames[j]]
+		return userI.Rating > userJ.Rating
+	})
+
+	// Build results up to limit
+	for _, username := range matchingUsernames {
+		if len(results) >= limit {
+			break
+		}
+		user := lb.usersByUsername[username]
+		results = append(results, models.SearchResult{
+			GlobalRank: lb.rankCache[user.Rating],
+			Username:   user.Username,
+			Rating:     user.Rating,
+		})
 	}
 
 	return results

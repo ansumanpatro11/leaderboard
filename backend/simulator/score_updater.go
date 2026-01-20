@@ -15,6 +15,7 @@ type ScoreUpdater struct {
 
 // NewScoreUpdater creates a new score updater
 func NewScoreUpdater(lb *store.Leaderboard) *ScoreUpdater {
+
 	return &ScoreUpdater{
 		leaderboard: lb,
 		stopChan:    make(chan struct{}),
