@@ -70,9 +70,19 @@ func (su *ScoreUpdater) performRandomUpdate(seed int) {
 		return
 	}
 
-	// Calculate new rating with some randomness
-	// Ratings can go up or down by 1-50 points
-	change := rand.Intn(101) - 50 // -50 to +50
+	// Calculate new rating with rating-dependent changes
+	// Higher rated players are more likely to lose points and lose more
+	var change int
+	ratingPercentage := float64(user.Rating) / 5000.0
+
+	if rand.Float64() < ratingPercentage {
+		// Higher rated players more likely to lose points
+		change = -(rand.Intn(30) + 10) // -10 to -40
+	} else {
+		// Lower rated players can still gain points
+		change = rand.Intn(25) - 5 // -5 to +20
+	}
+
 	newRating := user.Rating + change
 
 	// Clamp to valid range
