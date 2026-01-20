@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#2a2a3e',
     borderTopWidth: 1,
     paddingTop: 10,
-    paddingBottom: 20,
+    paddingBottom: 10,
     height: 90,
   },
   tabBarLabel: {
