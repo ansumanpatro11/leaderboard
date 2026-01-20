@@ -1,5 +1,5 @@
 // API configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://leaderboard-production-a864.up.railway.app';
 
 export interface LeaderboardEntry {
   rank: number;

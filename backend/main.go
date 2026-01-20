@@ -38,20 +38,16 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	// Initialize the leaderboard
 	log.Println("Initializing leaderboard...")
 	leaderboard := store.NewLeaderboard()
 
-	// Seed with 10,000+ users
 	log.Println("Generating 10,000 seed users...")
 	users := seed.GenerateUsersWithTies(10000)
 	leaderboard.BulkAddUsers(users)
 	log.Printf("Loaded %d users into leaderboard", leaderboard.GetTotalUsers())
 
-	// Initialize handlers
 	h := handlers.NewHandler(leaderboard)
 
-	// Start score updater simulator (5 updates per second)
 	log.Println("Starting score update simulator...")
 	updater := simulator.NewScoreUpdater(leaderboard)
 	updater.Start(5)
@@ -77,8 +73,8 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf(":%s", port)
-	log.Printf("🚀 Leaderboard API server starting on http://localhost%s", addr)
-	log.Printf("📊 API Endpoints:")
+	log.Printf("  Leaderboard API server starting on http://localhost%s", addr)
+	log.Printf("  API Endpoints:")
 	log.Printf("   GET /api/leaderboard?limit=50&offset=0")
 	log.Printf("   GET /api/users/search?q=rahul")
 	log.Printf("   GET /api/users/{username}")
