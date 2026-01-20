@@ -13,22 +13,26 @@ import { apiService, LeaderboardEntry } from "@/services/api";
 
 // Rank badge component with colors for top 3
 const RankBadge = ({ rank }: { rank: number }) => {
-  let backgroundColor = "#3a3a4a";
-  let textColor = "#ffffff";
+  let borderColor = "#9ca3af";
+  let textColor = "#9ca3af";
+  let backgroundColor = "rgba(156, 163, 175, 0.1)";
 
   if (rank === 1) {
-    backgroundColor = "#FFD700";
-    textColor = "#000000";
+    borderColor = "#FFD700";
+    textColor = "#FFD700";
+    backgroundColor = "rgba(255, 215, 0, 0.1)";
   } else if (rank === 2) {
-    backgroundColor = "#C0C0C0";
-    textColor = "#000000";
+    borderColor = "#C0C0C0";
+    textColor = "#C0C0C0";
+    backgroundColor = "rgba(192, 192, 192, 0.1)";
   } else if (rank === 3) {
-    backgroundColor = "#CD7F32";
-    textColor = "#000000";
+    borderColor = "#CD7F32";
+    textColor = "#CD7F32";
+    backgroundColor = "rgba(205, 127, 50, 0.1)";
   }
 
   return (
-    <View style={[styles.rankBadge, { backgroundColor }]}>
+    <View style={[styles.rankBadge, { borderColor, backgroundColor }]}>
       <Text style={[styles.rankText, { color: textColor }]}>#{rank}</Text>
     </View>
   );
@@ -295,10 +299,11 @@ const styles = StyleSheet.create({
   rankBadge: {
     width: 36,
     height: 36,
-    borderRadius: 6,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    borderWidth: 2,
   },
   rankText: {
     fontSize: 13,
@@ -309,6 +314,7 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "500",
+    paddingLeft: 16,
   },
   ratingContainer: {
     paddingHorizontal: 12,
