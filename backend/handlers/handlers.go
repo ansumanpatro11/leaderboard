@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"leaderboard-api/store"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // Handler holds dependencies for HTTP handlers
@@ -23,7 +25,7 @@ func (h *Handler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
-	limit := 50 
+	limit := 50
 	offset := 0
 
 	if limitStr != "" {
@@ -114,4 +116,81 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+}
+
+// StreamUpdates handles GET /api/stream (Server-Sent Events for live updates)
+func (h *Handler) StreamUpdates(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			entries := h.Leaderboard.GetLeaderboard(50, 0)
+			stats := h.Leaderboard.GetStats()
+			response := map[string]interface{}{
+				"entries":    entries,
+				"totalUsers": stats.TotalUsers,
+				"limit":      50,
+				"offset":     0,
+				"hasMore":    50 < stats.TotalUsers,
+			}
+			data, _ := json.Marshal(response)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
+}
+
+// StreamSearchUpdates handles GET /api/stream/search (SSE for live search updates)
+func (h *Handler) StreamSearchUpdates(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		http.Error(w, "Query parameter 'q' is required", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			results := h.Leaderboard.SearchUsers(query, 50)
+			response := map[string]interface{}{
+				"results": results,
+				"query":   query,
+				"count":   len(results),
+			}
+			data, _ := json.Marshal(response)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
 }

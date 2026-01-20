@@ -50,7 +50,7 @@ func main() {
 
 	log.Println("Starting score update simulator...")
 	updater := simulator.NewScoreUpdater(leaderboard)
-	updater.Start(5)
+	updater.Start(5000)
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -60,6 +60,8 @@ func main() {
 	mux.HandleFunc("GET /api/users/search", h.SearchUsers)
 	mux.HandleFunc("GET /api/users/{username}", h.GetUser)
 	mux.HandleFunc("GET /api/stats", h.GetStats)
+	mux.HandleFunc("GET /api/stream", h.StreamUpdates)
+	mux.HandleFunc("GET /api/stream/search", h.StreamSearchUpdates)
 	mux.HandleFunc("GET /health", h.HealthCheck)
 
 	// Apply middleware
@@ -85,5 +87,3 @@ func main() {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
-
-

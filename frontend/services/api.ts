@@ -1,5 +1,5 @@
 // API configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://leaderboard-production-a864.up.railway.app';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -104,6 +104,44 @@ class ApiService {
       console.error('Error fetching stats:', error);
       throw error;
     }
+  }
+
+  subscribeToUpdates(callback: (data: LeaderboardResponse) => void): () => void {
+    const eventSource = new EventSource(`${this.baseUrl}/api/stream`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        callback(data);
+      } catch (error) {
+        console.error('Error parsing stream data:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('Stream connection error:', error);
+    };
+    
+    return () => eventSource.close();
+  }
+
+  subscribeToSearchUpdates(query: string, callback: (data: SearchResponse) => void): () => void {
+    const eventSource = new EventSource(`${this.baseUrl}/api/stream/search?q=${encodeURIComponent(query)}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        callback(data);
+      } catch (error) {
+        console.error('Error parsing search stream data:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('Search stream connection error:', error);
+    };
+    
+    return () => eventSource.close();
   }
 }
 

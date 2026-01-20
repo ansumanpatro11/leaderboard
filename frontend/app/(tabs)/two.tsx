@@ -107,9 +107,28 @@ export default function SearchScreen() {
     }
   }, []);
 
+  // Initial search
   useEffect(() => {
     searchUsers(debouncedQuery);
   }, [debouncedQuery, searchUsers]);
+
+  // Subscribe to live updates separately
+  useEffect(() => {
+    if (debouncedQuery.trim().length === 0) {
+      return;
+    }
+
+    const unsubscribe = apiService.subscribeToSearchUpdates(
+      debouncedQuery,
+      (data) => {
+        setResults([...data.results]); // Spread to force React re-render
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [debouncedQuery]);
 
   const clearSearch = () => {
     setQuery("");
@@ -196,7 +215,10 @@ export default function SearchScreen() {
 
       <FlatList
         data={results}
-        keyExtractor={(item, index) => `${item.username}-${index}`}
+        keyExtractor={(item) =>
+          `${item.username}-${item.globalRank}-${item.rating}`
+        }
+        extraData={results}
         renderItem={({ item, index }) => (
           <SearchResultRow item={item} index={index} />
         )}

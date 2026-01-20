@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	
 	"leaderboard-api/store"
 	"math/rand"
 	"time"
@@ -94,4 +95,5 @@ func (su *ScoreUpdater) performRandomUpdate(seed int) {
 	}
 
 	su.leaderboard.UpdateRating(user.Username, newRating)
+	// fmt.Printf("[UPDATE] %s: %d → %d (change: %+d)\n", user.Username, user.Rating, newRating, change)
 }

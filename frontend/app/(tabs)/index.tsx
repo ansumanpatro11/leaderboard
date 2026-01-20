@@ -118,6 +118,15 @@ export default function LeaderboardScreen() {
 
   useEffect(() => {
     fetchLeaderboard();
+
+    // Subscribe to real-time updates via Server-Sent Events
+    const unsubscribe = apiService.subscribeToUpdates((data) => {
+      setEntries([...data.entries]); // Spread to force React re-render
+      setTotalUsers(data.totalUsers);
+      setHasMore(data.hasMore);
+    });
+
+    return unsubscribe;
   }, [fetchLeaderboard]);
 
   const handleRefresh = () => {
@@ -180,7 +189,8 @@ export default function LeaderboardScreen() {
       {/* Leaderboard List */}
       <FlatList
         data={entries}
-        keyExtractor={(item, index) => `${item.username}-${index}`}
+        keyExtractor={(item) => `${item.username}-${item.rank}-${item.rating}`}
+        extraData={entries}
         renderItem={({ item, index }) => <UserRow item={item} index={index} />}
         refreshControl={
           <RefreshControl
