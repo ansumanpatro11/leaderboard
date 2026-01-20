@@ -50,7 +50,7 @@ func main() {
 
 	log.Println("Starting score update simulator...")
 	updater := simulator.NewScoreUpdater(leaderboard)
-	updater.Start(1500)
+	updater.Start(3000)
 
 	// Setup routes
 	mux := http.NewServeMux()
