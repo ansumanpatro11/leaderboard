@@ -16,46 +16,16 @@ import { useDebounce } from "@/hooks/useDebounce";
 
 /* Rank badge for search results */
 const RankBadge = ({ rank }: { rank: number }) => {
-  let borderColor = "#9ca3af";
-  let textColor = "#9ca3af";
-  let backgroundColor = "rgba(156, 163, 175, 0.1)";
-
-  if (rank === 1) {
-    borderColor = "#FFD700";
-    textColor = "#FFD700";
-    backgroundColor = "rgba(255, 215, 0, 0.1)";
-  } else if (rank === 2) {
-    borderColor = "#C0C0C0";
-    textColor = "#C0C0C0";
-    backgroundColor = "rgba(192, 192, 192, 0.1)";
-  } else if (rank === 3) {
-    borderColor = "#CD7F32";
-    textColor = "#CD7F32";
-    backgroundColor = "rgba(205, 127, 50, 0.1)";
-  } else if (rank <= 10) {
-    borderColor = "#8b5cf6";
-    textColor = "#8b5cf6";
-    backgroundColor = "rgba(139, 92, 246, 0.1)";
-  }
-
   return (
-    <View style={[styles.rankBadge, { borderColor, backgroundColor }]}>
-      <Text style={[styles.rankText, { color: textColor }]}>#{rank}</Text>
+    <View style={styles.rankBadge}>
+      <Text style={styles.rankText}>{rank}</Text>
     </View>
   );
 };
 
-/* Rating display with color coding */
+/* Rating display */
 const RatingDisplay = ({ rating }: { rating: number }) => {
-  let color = "#4ade80";
-  if (rating < 2000) color = "#f87171";
-  else if (rating < 3500) color = "#facc15";
-
-  return (
-    <View style={[styles.ratingContainer, { borderColor: color }]}>
-      <Text style={[styles.ratingText, { color }]}>{rating}</Text>
-    </View>
-  );
+  return <Text style={styles.ratingText}>{rating}</Text>;
 };
 
 /* Search result row */
@@ -66,10 +36,14 @@ const SearchResultRow = ({
   item: SearchResult;
   index: number;
 }) => (
-  <View
-    style={[styles.resultRow, index % 2 === 0 ? styles.evenRow : styles.oddRow]}
-  >
+  <View style={styles.resultRow}>
     <RankBadge rank={item.globalRank} />
+    {/* Avatar */}
+    <View style={styles.listAvatar}>
+      <Text style={styles.listAvatarText}>
+        {item.username.charAt(0).toUpperCase()}
+      </Text>
+    </View>
     <Text style={styles.username} numberOfLines={1}>
       {item.username}
     </Text>
@@ -205,34 +179,34 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {results.length > 0 && (
-        <View style={styles.columnHeaders}>
-          <Text style={styles.columnRank}>Rank</Text>
-          <Text style={styles.columnUsername}>Username</Text>
-          <Text style={styles.columnRating}>Rating</Text>
-        </View>
-      )}
-
-      <FlatList
-        data={results}
-        keyExtractor={(item) =>
-          `${item.username}-${item.globalRank}-${item.rating}`
-        }
-        extraData={results}
-        renderItem={({ item, index }) => (
-          <SearchResultRow item={item} index={index} />
-        )}
-        ListEmptyComponent={renderEmptyState}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.listContent,
-          results.length === 0 && styles.emptyListContent,
+      {/* Results container with golden border */}
+      <View
+        style={[
+          styles.resultsContainer,
+          results.length === 0 && styles.resultsContainerEmpty,
         ]}
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        removeClippedSubviews={Platform.OS !== "web"}
-      />
+      >
+        <FlatList
+          data={results}
+          keyExtractor={(item) =>
+            `${item.username}-${item.globalRank}-${item.rating}`
+          }
+          extraData={results}
+          renderItem={({ item, index }) => (
+            <SearchResultRow item={item} index={index} />
+          )}
+          ListEmptyComponent={renderEmptyState}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.listContent,
+            results.length === 0 && styles.emptyListContent,
+          ]}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          removeClippedSubviews={Platform.OS !== "web"}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -241,15 +215,16 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f1a",
+    backgroundColor: "#18181b",
   },
 
   header: {
     padding: 20,
     paddingBottom: 12,
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#ffffff",
   },
@@ -285,39 +260,26 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  columnHeaders: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#1a1a2e",
-    borderBottomWidth: 1,
-    borderBottomColor: "#2a2a3e",
-  },
-  columnRank: {
-    width: 70,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  columnUsername: {
+  resultsContainer: {
     flex: 1,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
+    marginHorizontal: 16,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "#D4AF37",
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: "#1a1a1f",
+    overflow: "hidden",
   },
-  columnRating: {
-    width: 80,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    textAlign: "center",
+  resultsContainerEmpty: {
+    borderWidth: 0,
+    backgroundColor: "transparent",
   },
 
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 10,
   },
   emptyListContent: {
     flex: 1,
@@ -328,49 +290,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
-  },
-  evenRow: {
-    backgroundColor: "#0f0f1a",
-  },
-  oddRow: {
-    backgroundColor: "#151525",
+    borderBottomWidth: 1,
+    borderBottomColor: "#27272a",
   },
 
   rankBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 28,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
-    borderWidth: 2,
   },
   rankText: {
-    fontSize: 13,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#9ca3af",
+  },
+
+  listAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#ef4444",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  listAvatarText: {
+    color: "#fff",
     fontWeight: "bold",
+    fontSize: 15,
   },
 
   username: {
     flex: 1,
     color: "#ffffff",
     fontSize: 15,
-    fontWeight: "500",
-    paddingLeft: 16,
+    fontWeight: "600",
   },
 
-  ratingContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    width: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   ratingText: {
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#ffffff",
   },
 
   loadingContainer: {

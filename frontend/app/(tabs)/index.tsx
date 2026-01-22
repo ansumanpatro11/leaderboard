@@ -9,47 +9,21 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiService, LeaderboardEntry } from "@/services/api";
 
-// Rank badge component with colors for top 3
+// Rank badge component for list items (ranks 4+)
 const RankBadge = ({ rank }: { rank: number }) => {
-  let borderColor = "#9ca3af";
-  let textColor = "#9ca3af";
-  let backgroundColor = "rgba(156, 163, 175, 0.1)";
-
-  if (rank === 1) {
-    borderColor = "#FFD700";
-    textColor = "#FFD700";
-    backgroundColor = "rgba(255, 215, 0, 0.1)";
-  } else if (rank === 2) {
-    borderColor = "#C0C0C0";
-    textColor = "#C0C0C0";
-    backgroundColor = "rgba(192, 192, 192, 0.1)";
-  } else if (rank === 3) {
-    borderColor = "#CD7F32";
-    textColor = "#CD7F32";
-    backgroundColor = "rgba(205, 127, 50, 0.1)";
-  }
-
   return (
-    <View style={[styles.rankBadge, { borderColor, backgroundColor }]}>
-      <Text style={[styles.rankText, { color: textColor }]}>#{rank}</Text>
+    <View style={styles.rankBadge}>
+      <Text style={styles.rankText}>{rank}</Text>
     </View>
   );
 };
 
 // Rating display component
 const RatingDisplay = ({ rating }: { rating: number }) => {
-  let color = "#4ade80"; // green for high ratings
-  if (rating < 2000)
-    color = "#f87171"; // red
-  else if (rating < 3500) color = "#facc15"; // yellow
-
-  return (
-    <View style={[styles.ratingContainer, { borderColor: color }]}>
-      <Text style={[styles.ratingText, { color }]}>{rating}</Text>
-    </View>
-  );
+  return <Text style={styles.ratingText}>{rating}</Text>;
 };
 
 // User row component
@@ -60,16 +34,180 @@ const UserRow = ({
   item: LeaderboardEntry;
   index: number;
 }) => (
-  <View
-    style={[styles.userRow, index % 2 === 0 ? styles.evenRow : styles.oddRow]}
-  >
+  <View style={[styles.userRow]}>
     <RankBadge rank={item.rank} />
+    {/* Avatar Placeholder in List */}
+    <View style={styles.listAvatar}>
+      <Text style={styles.listAvatarText}>
+        {item.username.charAt(0).toUpperCase()}
+      </Text>
+    </View>
     <Text style={styles.username} numberOfLines={1}>
       {item.username}
     </Text>
     <RatingDisplay rating={item.rating} />
   </View>
 );
+
+// Helper to get colors for 3D effect
+const getPodiumColors = (rank: number, baseColor: string) => {
+  switch (rank) {
+    case 1:
+      return { front: baseColor, top: "#D4AF37" }; // Darker gold for top
+    case 2:
+      return { front: baseColor, top: "#A8A8A8" }; // Darker silver for top
+    case 3:
+      return { front: baseColor, top: "#A0522D" }; // Darker bronze for top
+    default:
+      return { front: baseColor, top: baseColor };
+  }
+};
+
+const PodiumItem = ({
+  entry,
+  rank,
+  height,
+  color,
+  isCenter = false,
+}: {
+  entry: LeaderboardEntry;
+  rank: number;
+  height: number;
+  color: string;
+  isCenter?: boolean;
+}) => {
+  const { front, top } = getPodiumColors(rank, color);
+  const barWidth = isCenter ? 110 : 90;
+  const depth = 20; // How deep the top face appears
+
+  const avatarSize = isCenter ? 80 : 60;
+  const avatarRadius = avatarSize / 2;
+  const avatarFontSize = isCenter ? 24 : 18;
+
+  return (
+    <View style={[styles.podiumColumn, { zIndex: isCenter ? 10 : 1 }]}>
+      <View style={[styles.podiumUserContainer, { marginBottom: depth + 10 }]}>
+        {/* Avatar */}
+        <View
+          style={{
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: avatarRadius,
+            backgroundColor: "#27272a",
+            justifyContent: "center",
+            alignItems: "center",
+            borderWidth: 2,
+            borderColor: color,
+            marginBottom: 6,
+          }}
+        >
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: avatarFontSize,
+              fontWeight: "bold",
+            }}
+          >
+            {entry.username.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+        <Text style={styles.podiumUsername} numberOfLines={1}>
+          {entry.username}
+        </Text>
+        <Text style={[styles.podiumScore, { color: color }]}>
+          {entry.rating}
+        </Text>
+      </View>
+
+      {/* 3D Bar - Front and Top visible */}
+      <View style={{ width: barWidth, height: height + depth }}>
+        {/* Top Face - recedes inward */}
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: barWidth,
+            height: depth,
+            backgroundColor: top,
+            transform: [{ perspective: 200 }, { rotateX: "60deg" }],
+            transformOrigin: "bottom",
+          }}
+        />
+        {/* Front Face */}
+        <View
+          style={{
+            position: "absolute",
+            top: depth,
+            left: 0,
+            width: barWidth,
+            height: height,
+            backgroundColor: front,
+            justifyContent: "flex-start",
+            alignItems: "center",
+            paddingTop: 15,
+          }}
+        >
+          <Text style={styles.podiumRankText}>{rank}</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const Podium = ({ entries }: { entries: LeaderboardEntry[] }) => {
+  // We expect entries to be sorted by rank (1, 2, 3...)
+  // But allow passing unsorted, so we find by rank.
+  const first = entries.find((e) => e.rank === 1);
+  const second = entries.find((e) => e.rank === 2);
+  const third = entries.find((e) => e.rank === 3);
+
+  return (
+    <View style={styles.podiumContainer}>
+      {/* Second Place (Left) */}
+      <View style={styles.podiumPlaceContainer}>
+        {second ? (
+          <PodiumItem entry={second} rank={2} height={100} color="#C0C0C0" />
+        ) : (
+          <View style={{ width: "100%" }} />
+        )}
+      </View>
+
+      {/* First Place (Center) */}
+      <View
+        style={[
+          styles.podiumPlaceContainer,
+          { marginHorizontal: 4, zIndex: 10 },
+        ]}
+      >
+        {/* Crown could go here */}
+        {first && (
+          <View style={{ alignItems: "center", width: "100%" }}>
+            <View style={styles.crownContainer}>
+              <MaterialCommunityIcons name="crown" size={24} color="#FFD700" />
+            </View>
+            <PodiumItem
+              entry={first}
+              rank={1}
+              height={130}
+              color="#FFD700"
+              isCenter
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Third Place (Right) */}
+      <View style={styles.podiumPlaceContainer}>
+        {third ? (
+          <PodiumItem entry={third} rank={3} height={70} color="#CD7F32" />
+        ) : (
+          <View style={{ width: "100%" }} />
+        )}
+      </View>
+    </View>
+  );
+};
 
 export default function LeaderboardScreen() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -121,7 +259,7 @@ export default function LeaderboardScreen() {
 
     // Subscribe to real-time updates via Server-Sent Events
     const unsubscribe = apiService.subscribeToUpdates((data) => {
-      setEntries([...data.entries]); // Spread to force React re-render
+      setEntries([...data.entries]);
       setTotalUsers(data.totalUsers);
       setHasMore(data.hasMore);
     });
@@ -148,7 +286,7 @@ export default function LeaderboardScreen() {
     );
   };
 
-  if (loading) {
+  if (loading && entries.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -159,7 +297,7 @@ export default function LeaderboardScreen() {
     );
   }
 
-  if (error) {
+  if (error && entries.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -172,43 +310,41 @@ export default function LeaderboardScreen() {
     );
   }
 
+  const topThree = entries.slice(0, 3);
+  const otherEntries = entries.slice(3);
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🏆 Leaderboard</Text>
+        <Text style={styles.headerTitle}>Leaderboard</Text>
       </View>
 
-      {/* Column Headers */}
-      <View style={styles.columnHeaders}>
-        <Text style={styles.columnRank}>Rank</Text>
-        <Text style={styles.columnUsername}>Username</Text>
-        <Text style={styles.columnRating}>Rating</Text>
-      </View>
+      {/* Podium - Top 3 */}
+      <Podium entries={topThree} />
 
-      {/* Leaderboard List */}
-      <FlatList
-        data={entries}
-        keyExtractor={(item) => `${item.username}-${item.rank}-${item.rating}`}
-        extraData={entries}
-        renderItem={({ item, index }) => <UserRow item={item} index={index} />}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#8b5cf6"
-          />
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        removeClippedSubviews={Platform.OS !== "web"}
-      />
+      {/* Bordered container for ranks 4+ */}
+      <View style={styles.ranksListContainer}>
+        <FlatList
+          data={otherEntries}
+          keyExtractor={(item) => `${item.username}-${item.rank}`}
+          renderItem={({ item, index }) => (
+            <UserRow item={item} index={index} />
+          )}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#8b5cf6"
+            />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -216,16 +352,17 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f1a",
+    backgroundColor: "#18181b", // Dark background like the image
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#18181b",
   },
   loadingText: {
     marginTop: 12,
-    color: "#9ca3af",
+    color: "#a1a1aa",
     fontSize: 16,
   },
   errorContainer: {
@@ -233,6 +370,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    backgroundColor: "#18181b",
   },
   errorText: {
     color: "#f87171",
@@ -241,104 +379,146 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   errorHint: {
-    color: "#9ca3af",
+    color: "#a1a1aa",
     fontSize: 14,
     textAlign: "center",
   },
   header: {
     padding: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1f1f2e",
+    alignItems: "center",
+    backgroundColor: "#18181b",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#ffffff",
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#9ca3af",
-    marginTop: 4,
-  },
-  columnHeaders: {
+
+  // Podium Styles
+  podiumContainer: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#1a1a2e",
-    borderBottomWidth: 1,
-    borderBottomColor: "#2a2a3e",
+    justifyContent: "center",
+    alignItems: "flex-end",
+    marginBottom: 0,
+    paddingHorizontal: 20,
+    height: 300,
   },
-  columnRank: {
-    width: 70,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
+  podiumPlaceContainer: {
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
-  columnUsername: {
-    flex: 1,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
+  podiumColumn: {
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
-  columnRating: {
+  podiumUserContainer: {
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  podiumAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#27272a", // Dark grey placeholder
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  podiumAvatarLarge: {
     width: 80,
-    color: "#9ca3af",
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    textAlign: "center",
+    height: 80,
+    borderRadius: 40,
   },
+  podiumAvatarText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  podiumUsername: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  podiumScore: {
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  podiumRankText: {
+    color: "#ffffff",
+    fontSize: 42,
+    fontWeight: "900",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  crownContainer: {
+    marginBottom: -10,
+    zIndex: 20,
+  },
+
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: 10,
+  },
+  ranksListContainer: {
+    flex: 1,
+    marginHorizontal: 16,
+    marginTop: 0,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "#D4AF37",
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: "#1a1a1f",
+    overflow: "hidden",
   },
   userRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
-  },
-  evenRow: {
-    backgroundColor: "#0f0f1a",
-  },
-  oddRow: {
-    backgroundColor: "#151525",
+    borderBottomWidth: 1,
+    borderBottomColor: "#27272a",
   },
   rankBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 28,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
-    borderWidth: 2,
   },
   rankText: {
-    fontSize: 13,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#9ca3af",
+  },
+  listAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#ef4444",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  listAvatarText: {
+    color: "#fff",
     fontWeight: "bold",
+    fontSize: 15,
   },
   username: {
     flex: 1,
     color: "#ffffff",
     fontSize: 15,
-    fontWeight: "500",
-    paddingLeft: 16,
-  },
-  ratingContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    width: 80,
-    alignItems: "center",
-    justifyContent: "center",
+    fontWeight: "600",
   },
   ratingText: {
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#ffffff",
   },
   footer: {
     padding: 16,
